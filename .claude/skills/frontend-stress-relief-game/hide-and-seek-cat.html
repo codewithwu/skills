@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>躲猫猫 | 记忆解压小游戏</title>
+    <style>
+        :root {
+            --bg-gradient: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
+            --grid-bg: #ffffff;
+            --grid-border: #d0d5dd;
+            --grid-hover: rgba(255, 215, 0, 0.15);
+            --highlight: #ffd700;
+            --correct: #4ade80;
+            --wrong: #f87171;
+            --text-primary: #374151;
+            --text-secondary: #6b7280;
+            --glass-bg: rgba(255, 255, 255, 0.7);
+            --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            --cat-size: 36px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-gradient);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            overflow: hidden;
+        }
+
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            max-width: 500px;
+            width: 100%;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            padding: 16px 24px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            border-radius: 20px;
+            box-shadow: var(--glass-shadow);
+        }
+
+        .title {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .stats {
+            display: flex;
+            gap: 16px;
+            font-size: 1rem;
+            color: var(--text-secondary);
+        }
+
+        .stat {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .stat-value {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .phase-display {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            padding: 8px 16px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            border-radius: 12px;
+        }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 4px;
+            padding: 12px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            border-radius: 20px;
+            box-shadow: var(--glass-shadow);
+            width: 100%;
+            max-width: 420px;
+            aspect-ratio: 1;
+        }
+
+        .cell {
+            aspect-ratio: 1;
+            background: var(--grid-bg);
+            border: 1px solid var(--grid-border);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+            position: relative;
+        }
+
+        .cell:hover:not(.found):not(.disabled) {
+            background: var(--grid-hover);
+            transform: scale(1.05);
+        }
+
+        .cell.found {
+            background: rgba(74, 222, 128, 0.2);
+            border-color: var(--correct);
+            cursor: default;
+        }
+
+        .cell.wrong {
+            animation: wrongShake 0.4s ease;
+            background: rgba(248, 113, 113, 0.3);
+        }
+
+        .cell.hint-glow {
+            animation: hintPulse 1s ease infinite;
+        }
+
+        @keyframes wrongShake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-4px); }
+            75% { transform: translateX(4px); }
+        }
+
+        @keyframes hintPulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.4); }
+            50% { box-shadow: 0 0 0 8px rgba(255, 215, 0, 0); }
+        }
+
+        .cat {
+            width: var(--cat-size);
+            height: var(--cat-size);
+            position: absolute;
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            z-index: 10;
+        }
+
+        .cat-body {
+            width: 100%;
+            height: 100%;
+            border-radius: 50% 50% 45% 45%;
+            position: relative;
+        }
+
+        .black-cat .cat-body {
+            background: linear-gradient(145deg, #2d2d2d, #1a1a1a);
+        }
+
+        .white-cat .cat-body {
+            background: linear-gradient(145deg, #ffffff, #e8e8e8);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .cat-ear {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            top: -4px;
+            border-radius: 50% 50% 0 0;
+        }
+
+        .black-cat .cat-ear { background: #2d2d2d; }
+        .black-cat .cat-ear.left { transform: rotate(-15deg); left: 4px; }
+        .black-cat .cat-ear.right { transform: rotate(15deg); right: 4px; }
+
+        .white-cat .cat-ear { background: #f0f0f0; }
+        .white-cat .cat-ear.left { transform: rotate(-15deg); left: 4px; }
+        .white-cat .cat-ear.right { transform: rotate(15deg); right: 4px; }
+
+        .cat-eye {
+            position: absolute;
+            width: 8px;
+            height: 10px;
+            top: 35%;
+            border-radius: 50%;
+        }
+
+        .black-cat .cat-eye {
+            background: #fbbf24;
+            box-shadow: 0 0 4px #fbbf24;
+        }
+
+        .white-cat .cat-eye {
+            background: #60a5fa;
+            box-shadow: 0 0 4px #60a5fa;
+        }
+
+        .black-cat .cat-eye.left { left: 22%; }
+        .black-cat .cat-eye.right { right: 22%; }
+
+        .white-cat .cat-eye.left { left: 22%; }
+        .white-cat .cat-eye.right { right: 22%; }
+
+        .cat-nose {
+            position: absolute;
+            width: 6px;
+            height: 4px;
+            bottom: 30%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #ffb7c5;
+            border-radius: 50%;
+        }
+
+        .cat-tail {
+            position: absolute;
+            width: 6px;
+            height: 16px;
+            bottom: -10px;
+            right: 8px;
+            background: inherit;
+            border-radius: 0 0 3px 3px;
+            transform-origin: top center;
+            animation: tailWag 0.6s ease-in-out infinite alternate;
+        }
+
+        .black-cat .cat-tail { background: #2d2d2d; }
+        .white-cat .cat-tail { background: #e0e0e0; }
+
+        @keyframes tailWag {
+            0% { transform: rotate(-15deg); }
+            100% { transform: rotate(15deg); }
+        }
+
+        .cat.jump {
+            animation: catJump 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        @keyframes catJump {
+            0% { transform: scale(1) translateY(0); }
+            50% { transform: scale(1.1) translateY(-8px); }
+            100% { transform: scale(1) translateY(0); }
+        }
+
+        .cat.hidden {
+            opacity: 0;
+            transform: scale(0.5);
+        }
+
+        .cat.found-cat {
+            animation: foundAppear 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        @keyframes foundAppear {
+            0% { transform: scale(0) rotate(0deg); opacity: 0; }
+            50% { transform: scale(1.3) rotate(180deg); }
+            100% { transform: scale(1) rotate(360deg); opacity: 1; }
+        }
+
+        .countdown-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(8px);
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .countdown-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .countdown-number {
+            font-size: 8rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            animation: countdownPop 0.8s ease-out;
+        }
+
+        @keyframes countdownPop {
+            0% { transform: scale(0.5); opacity: 0; }
+            20% { transform: scale(1.2); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .controls {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn:active {
+            transform: scale(0.95);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #ffd700, #ffb800);
+            color: #5c4d00;
+            box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3);
+        }
+
+        .btn-primary:hover {
+            box-shadow: 0 6px 16px rgba(255, 215, 0, 0.4);
+        }
+
+        .btn-secondary {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            color: var(--text-primary);
+            box-shadow: var(--glass-shadow);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.9);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #f87171, #ef4444);
+            color: white;
+            box-shadow: 0 4px 12px rgba(248, 113, 113, 0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .hint-text {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            text-align: center;
+        }
+
+        .message {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 24px 48px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(16px);
+            border-radius: 20px;
+            box-shadow: var(--glass-shadow);
+            text-align: center;
+            z-index: 200;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .message.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .message h2 {
+            font-size: 2rem;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .message p {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+        }
+
+        .result-stars {
+            font-size: 2.5rem;
+            margin-bottom: 16px;
+        }
+
+        .particles-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        @media (max-width: 480px) {
+            :root {
+                --cat-size: 28px;
+            }
+
+            .title {
+                font-size: 1.1rem;
+            }
+
+            .stats {
+                gap: 10px;
+                font-size: 0.85rem;
+            }
+
+            .countdown-number {
+                font-size: 6rem;
+            }
+
+            .btn {
+                padding: 10px 18px;
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="header">
+            <div class="title">躲猫猫</div>
+            <div class="stats">
+                <div class="stat">
+                    <span>🐱</span>
+                    <span class="stat-value" id="found-count">0</span>
+                    <span>/</span>
+                    <span>3</span>
+                </div>
+                <div class="stat">
+                    <span>⏱️</span>
+                    <span class="stat-value" id="timer">30</span>
+                    <span>秒</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="phase-display" id="phase-display">准备阶段</div>
+
+        <div class="grid-container" id="grid"></div>
+
+        <div class="controls" id="controls">
+            <button class="btn btn-primary" id="start-btn">
+                <span>🎮</span> 开始游戏
+            </button>
+        </div>
+
+        <p class="hint-text" id="hint-text">记住白猫的位置！</p>
+    </div>
+
+    <div class="countdown-overlay" id="countdown-overlay">
+        <div class="countdown-number" id="countdown-number">3</div>
+    </div>
+
+    <div class="message" id="result-message">
+        <div class="result-stars" id="result-stars">⭐⭐⭐</div>
+        <h2 id="result-title">太棒了！</h2>
+        <p id="result-desc">你找到了 3/3 只白猫</p>
+        <button class="btn btn-primary" id="replay-btn">
+            <span>🔄</span> 再玩一次
+        </button>
+    </div>
+
+    <canvas class="particles-canvas" id="particles-canvas"></canvas>
+
+    <script>
+        (function() {
+            "use strict";
+
+            const GRID_SIZE = 8;
+            const WHITE_CATS = 3;
+            const BLACK_CATS = 3;
+            const PREPARE_TIME = 3;
+            const RUN_TIME = 10;
+            const SEEK_TIME = 30;
+            const HINT_COST = 5;
+
+            let audioCtx = null;
+            let gameState = 'idle';
+            let phase = 'idle';
+            let cats = [];
+            let foundCats = [];
+            let timer = 0;
+            let timerInterval = null;
+            let moveInterval = null;
+            let hintUsed = false;
+
+            const grid = document.getElementById('grid');
+            const foundCountEl = document.getElementById('found-count');
+            const timerEl = document.getElementById('timer');
+            const phaseDisplay = document.getElementById('phase-display');
+            const hintText = document.getElementById('hint-text');
+            const controls = document.getElementById('controls');
+            const startBtn = document.getElementById('start-btn');
+            const countdownOverlay = document.getElementById('countdown-overlay');
+            const countdownNumber = document.getElementById('countdown-number');
+            const resultMessage = document.getElementById('result-message');
+            const resultStars = document.getElementById('result-stars');
+            const resultTitle = document.getElementById('result-title');
+            const resultDesc = document.getElementById('result-desc');
+            const replayBtn = document.getElementById('replay-btn');
+            const particlesCanvas = document.getElementById('particles-canvas');
+            const particlesCtx = particlesCanvas.getContext('2d');
+            let particles = [];
+
+            function initAudio() {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            }
+
+            function playSound(type) {
+                if (!audioCtx) return;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                switch(type) {
+                    case 'jump':
+                        osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+                        osc.frequency.exponentialRampToValueAtTime(600, audioCtx.currentTime + 0.1);
+                        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                        osc.start();
+                        osc.stop(audioCtx.currentTime + 0.1);
+                        break;
+                    case 'found':
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(523, audioCtx.currentTime);
+                        osc.frequency.setValueAtTime(659, audioCtx.currentTime + 0.1);
+                        osc.frequency.setValueAtTime(784, audioCtx.currentTime + 0.2);
+                        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+                        osc.start();
+                        osc.stop(audioCtx.currentTime + 0.4);
+                        break;
+                    case 'wrong':
+                        osc.type = 'sawtooth';
+                        osc.frequency.setValueAtTime(200, audioCtx.currentTime);
+                        osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.15);
+                        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+                        osc.start();
+                        osc.stop(audioCtx.currentTime + 0.15);
+                        break;
+                    case 'countdown':
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+                        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+                        osc.start();
+                        osc.stop(audioCtx.currentTime + 0.2);
+                        break;
+                    case 'tick':
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+                        gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+                        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
+                        osc.start();
+                        osc.stop(audioCtx.currentTime + 0.05);
+                        break;
+                }
+            }
+
+            function createParticles(x, y, color, count = 20) {
+                for (let i = 0; i < count; i++) {
+                    particles.push({
+                        x, y,
+                        vx: (Math.random() - 0.5) * 8,
+                        vy: (Math.random() - 0.5) * 8 - 3,
+                        life: 1,
+                        color,
+                        size: Math.random() * 6 + 2
+                    });
+                }
+            }
+
+            function updateParticles() {
+                particlesCtx.clearRect(0, 0, particlesCanvas.width, particlesCanvas.height);
+                particles = particles.filter(p => {
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.vy += 0.2;
+                    p.life -= 0.02;
+
+                    if (p.life > 0) {
+                        particlesCtx.beginPath();
+                        particlesCtx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+                        particlesCtx.fillStyle = p.color;
+                        particlesCtx.globalAlpha = p.life;
+                        particlesCtx.fill();
+                        particlesCtx.globalAlpha = 1;
+                        return true;
+                    }
+                    return false;
+                });
+                requestAnimationFrame(updateParticles);
+            }
+
+            function resizeCanvas() {
+                particlesCanvas.width = window.innerWidth;
+                particlesCanvas.height = window.innerHeight;
+            }
+
+            function createCatElement(type, index) {
+                const cat = document.createElement('div');
+                cat.className = `cat ${type}-cat`;
+                cat.id = `cat-${type}-${index}`;
+                cat.innerHTML = `
+                    <div class="cat-body">
+                        <div class="cat-ear left"></div>
+                        <div class="cat-ear right"></div>
+                        <div class="cat-eye left"></div>
+                        <div class="cat-eye right"></div>
+                        <div class="cat-nose"></div>
+                    </div>
+                    <div class="cat-tail"></div>
+                `;
+                return cat;
+            }
+
+            function initGrid() {
+                grid.innerHTML = '';
+                for (let i = 0; i < GRID_SIZE * GRID_SIZE; i++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell disabled';
+                    cell.dataset.index = i;
+                    cell.addEventListener('click', () => handleCellClick(i));
+                    grid.appendChild(cell);
+                }
+            }
+
+            function getRandomPosition() {
+                return Math.floor(Math.random() * GRID_SIZE * GRID_SIZE);
+            }
+
+            function initCats() {
+                cats = [];
+                foundCats = [];
+                const positions = new Set();
+
+                while (cats.filter(c => c.type === 'white').length < WHITE_CATS ||
+                       cats.filter(c => c.type === 'black').length < BLACK_CATS) {
+                    const pos = getRandomPosition();
+                    if (!positions.has(pos)) {
+                        positions.add(pos);
+                        const type = cats.filter(c => c.type === 'white').length < WHITE_CATS ? 'white' : 'black';
+                        cats.push({ type, position: pos, element: null });
+                    }
+                }
+            }
+
+            function placeCats() {
+                const cells = grid.querySelectorAll('.cell');
+                cats.forEach((cat, index) => {
+                    const cell = cells[cat.position];
+                    if (cat.element) {
+                        cat.element.remove();
+                    }
+                    const el = createCatElement(cat.type, index);
+                    cell.appendChild(el);
+                    cat.element = el;
+                    cat.cell = cell;
+                });
+            }
+
+            function moveCats(blackCatsOnly = false) {
+                cats.forEach((cat, index) => {
+                    if (cat.found) return;
+                    // 在寻找阶段，只移动黑猫；白猫静止隐藏
+                    if (blackCatsOnly && cat.type === 'white') return;
+
+                    const oldCell = cat.cell;
+                    let newPos;
+                    do {
+                        newPos = getRandomPosition();
+                    } while (cats.some(c => c !== cat && c.position === newPos && !c.found));
+
+                    cat.position = newPos;
+                    const cells = grid.querySelectorAll('.cell');
+                    const newCell = cells[newPos];
+
+                    cat.element.classList.add('jump');
+                    playSound('jump');
+
+                    setTimeout(() => {
+                        oldCell.classList.remove('has-cat');
+                        newCell.appendChild(cat.element);
+                        cat.cell = newCell;
+                        cat.element.classList.remove('jump');
+                    }, 200);
+                });
+            }
+
+            function hideWhiteCats() {
+                cats.filter(c => c.type === 'white' && !c.found).forEach(cat => {
+                    cat.element.classList.add('hidden');
+                });
+            }
+
+            function showWhiteCats() {
+                cats.filter(c => c.type === 'white').forEach(cat => {
+                    cat.element.classList.remove('hidden');
+                });
+            }
+
+            function handleCellClick(index) {
+                if (phase !== 'seeking') return;
+
+                const cell = grid.querySelector(`[data-index="${index}"]`);
+                if (cell.classList.contains('found') || cell.classList.contains('disabled')) return;
+
+                const whiteCat = cats.find(c => c.type === 'white' && c.position === index && !c.found);
+
+                if (whiteCat) {
+                    whiteCat.found = true;
+                    foundCats.push(whiteCat);
+                    cell.classList.add('found');
+                    whiteCat.element.classList.remove('hidden');
+                    whiteCat.element.classList.add('found-cat');
+                    playSound('found');
+
+                    const rect = cell.getBoundingClientRect();
+                    createParticles(rect.left + rect.width/2, rect.top + rect.height/2, '#ffd700', 30);
+
+                    foundCountEl.textContent = foundCats.length;
+                    hintText.textContent = '喵~找到啦！';
+
+                    if (foundCats.length === WHITE_CATS) {
+                        setTimeout(() => endGame(true), 500);
+                    }
+                } else {
+                    cell.classList.add('wrong');
+                    playSound('wrong');
+                    timer = Math.max(0, timer - 5);
+                    timerEl.textContent = timer;
+                    hintText.textContent = '这里没有猫... -5秒';
+
+                    setTimeout(() => cell.classList.remove('wrong'), 400);
+
+                    if (timer <= 0) {
+                        endGame(false);
+                    }
+                }
+            }
+
+            function showHint() {
+                if (hintUsed || phase !== 'seeking') return;
+
+                const unhintedWhiteCats = cats.filter(c => c.type === 'white' && !c.found && !c.hinted);
+                if (unhintedWhiteCats.length === 0) return;
+
+                hintUsed = true;
+                timer = Math.max(0, timer - HINT_COST);
+                timerEl.textContent = timer;
+
+                const cat = unhintedWhiteCats[0];
+                cat.hinted = true;
+                cat.cell.classList.add('hint-glow');
+                hintText.textContent = `候选区域已高亮！-${HINT_COST}秒`;
+
+                if (timer <= 0) {
+                    endGame(false);
+                }
+            }
+
+            function giveUp() {
+                if (phase !== 'seeking') return;
+
+                cats.filter(c => c.type === 'white' && !c.found).forEach(cat => {
+                    cat.element.classList.remove('hidden');
+                    cat.cell.classList.add('found');
+                });
+
+                endGame(false);
+            }
+
+            function startCountdown(seconds, callback) {
+                let count = seconds;
+                countdownOverlay.classList.add('active');
+
+                function tick() {
+                    countdownNumber.textContent = count > 0 ? count : '开始！';
+                    countdownNumber.style.animation = 'none';
+                    countdownNumber.offsetHeight;
+                    countdownNumber.style.animation = 'countdownPop 0.8s ease-out';
+
+                    if (count > 0) {
+                        playSound('countdown');
+                        count--;
+                        setTimeout(tick, 1000);
+                    } else {
+                        setTimeout(() => {
+                            countdownOverlay.classList.remove('active');
+                            callback();
+                        }, 500);
+                    }
+                }
+
+                tick();
+            }
+
+            function startPhase(phaseName, duration, onTick, onEnd) {
+                phase = phaseName;
+                timer = duration;
+                timerEl.textContent = timer;
+
+                if (phaseName === 'seeking') {
+                    document.querySelectorAll('.cell').forEach(c => c.classList.remove('disabled'));
+                    hideWhiteCats();
+                    // 只移动黑猫继续迷惑玩家，白猫保持隐藏
+                    moveInterval = setInterval(() => moveCats(true), 400);
+                    hintText.textContent = '点击方格寻找白猫！';
+                }
+
+                timerInterval = setInterval(() => {
+                    timer--;
+                    timerEl.textContent = timer;
+
+                    if (onTick) onTick();
+
+                    if (timer <= 5 && timer > 0 && phase === 'seeking') {
+                        playSound('tick');
+                    }
+
+                    if (timer <= 0) {
+                        clearInterval(timerInterval);
+                        if (moveInterval) {
+                            clearInterval(moveInterval);
+                            moveInterval = null;
+                        }
+                        if (onEnd) onEnd();
+                    }
+                }, 1000);
+            }
+
+            function startGame() {
+                initAudio();
+                gameState = 'playing';
+                foundCats = [];
+                hintUsed = false;
+                foundCountEl.textContent = '0';
+
+                initGrid();
+                initCats();
+                placeCats();
+
+                startBtn.style.display = 'none';
+                resultMessage.classList.remove('active');
+
+                phaseDisplay.textContent = '准备阶段';
+                hintText.textContent = '看好白猫的位置...';
+
+                startCountdown(PREPARE_TIME, () => {
+                    phaseDisplay.textContent = '奔跑阶段';
+                    hintText.textContent = '记住白猫的位置！';
+                    showWhiteCats();
+
+                    // 奔跑阶段：黑白猫一起移动
+                    moveInterval = setInterval(() => moveCats(false), 400);
+
+                    startPhase('running', RUN_TIME, null, () => {
+                        // 停止奔跑阶段的移动
+                        if (moveInterval) {
+                            clearInterval(moveInterval);
+                            moveInterval = null;
+                        }
+                        phaseDisplay.textContent = '寻找阶段';
+                        startPhase('seeking', SEEK_TIME, null, () => {
+                            endGame(false);
+                        });
+                    });
+                });
+            }
+
+            function endGame(won) {
+                clearInterval(timerInterval);
+                if (moveInterval) {
+                    clearInterval(moveInterval);
+                    moveInterval = null;
+                }
+
+                phase = 'ended';
+                document.querySelectorAll('.cell').forEach(c => c.classList.add('disabled'));
+                showWhiteCats();
+
+                const found = foundCats.length;
+                let stars = '';
+                let title = '';
+                let desc = '';
+
+                if (won || found === WHITE_CATS) {
+                    stars = '⭐⭐⭐';
+                    title = '太棒了！';
+                    desc = '你找齐了所有白猫！';
+                } else if (found === 2) {
+                    stars = '⭐⭐';
+                    title = '很不错！';
+                    desc = `找到了 ${found}/3 只白猫`;
+                } else if (found === 1) {
+                    stars = '⭐';
+                    title = '还行哦~';
+                    desc = `找到了 ${found}/3 只白猫`;
+                } else {
+                    stars = '💫';
+                    title = '再接再厉';
+                    desc = `找到了 ${found}/3 只白猫`;
+                }
+
+                resultStars.textContent = stars;
+                resultTitle.textContent = title;
+                resultDesc.textContent = desc;
+
+                setTimeout(() => {
+                    resultMessage.classList.add('active');
+                }, 300);
+            }
+
+            function resetGame() {
+                clearInterval(timerInterval);
+                if (moveInterval) {
+                    clearInterval(moveInterval);
+                    moveInterval = null;
+                }
+
+                gameState = 'idle';
+                phase = 'idle';
+                cats = [];
+                foundCats = [];
+                hintUsed = false;
+                particles = [];
+
+                initGrid();
+                foundCountEl.textContent = '0';
+                timerEl.textContent = SEEK_TIME;
+                phaseDisplay.textContent = '准备阶段';
+                hintText.textContent = '记住白猫的位置！';
+                startBtn.style.display = 'flex';
+                resultMessage.classList.remove('active');
+                document.querySelectorAll('.cell').forEach(c => {
+                    c.classList.remove('found', 'wrong', 'hint-glow', 'disabled');
+                    c.classList.add('disabled');
+                });
+            }
+
+            startBtn.addEventListener('click', startGame);
+            replayBtn.addEventListener('click', () => {
+                resetGame();
+                setTimeout(startGame, 100);
+            });
+
+            controls.addEventListener('click', (e) => {
+                if (e.target.closest('#hint-btn')) showHint();
+                if (e.target.closest('#giveup-btn')) giveUp();
+            });
+
+            window.addEventListener('resize', resizeCanvas);
+            resizeCanvas();
+            updateParticles();
+            initGrid();
+
+            const hintBtn = document.createElement('button');
+            hintBtn.id = 'hint-btn';
+            hintBtn.className = 'btn btn-secondary';
+            hintBtn.innerHTML = '<span>💡</span> 提示(-5秒)';
+            hintBtn.disabled = true;
+
+            const giveupBtn = document.createElement('button');
+            giveupBtn.id = 'giveup-btn';
+            giveupBtn.className = 'btn btn-secondary';
+            giveupBtn.innerHTML = '<span>🏳️</span> 放弃';
+            giveupBtn.disabled = true;
+
+            controls.appendChild(hintBtn);
+            controls.appendChild(giveupBtn);
+
+            const originalStartGame = startGame;
+            window.startGame = function() {
+                hintBtn.disabled = false;
+                giveupBtn.disabled = false;
+                originalStartGame();
+            };
+        })();
+    </script>
+</body>
+</html>

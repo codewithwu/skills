@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>捏泡泡 | 解压小游戏</title>
+    <style>
+        :root {
+            --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            --bubble-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            --glass-bg: rgba(255,255,255,0.15);
+            --glass-border: rgba(255,255,255,0.3);
+            --text-color: #fff;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            min-height: 100vh;
+            background: var(--bg-gradient);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            overflow: hidden;
+            touch-action: manipulation;
+        }
+
+        .game-container {
+            width: 100%;
+            max-width: 500px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 24px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 20px;
+            border: 1px solid var(--glass-border);
+            color: var(--text-color);
+        }
+
+        .title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+
+        .level-info {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .level {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #ffd700;
+        }
+
+        .timer {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #fff;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+
+        .timer.warning {
+            color: #ff6b6b;
+            animation: pulse 0.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .score-display {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .score {
+            font-size: 1.1rem;
+            font-weight: 500;
+        }
+
+        .score span {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .combo {
+            background: linear-gradient(135deg, #ffd700, #ff6b6b);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            opacity: 0;
+            transform: scale(0.8);
+            transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+
+        .combo.active {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .game-over-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .game-over-overlay.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .game-over-text {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 20px;
+            text-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+
+        .game-over-sub {
+            font-size: 1.2rem;
+            color: rgba(255,255,255,0.8);
+            margin-bottom: 30px;
+        }
+
+        .victory-text {
+            color: #ffd700;
+        }
+
+        .fail-text {
+            color: #ff6b6b;
+        }
+
+        .reset-btn {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            color: var(--text-color);
+            padding: 10px 20px;
+            border-radius: 12px;
+            font-size: 1rem;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            transition: all 0.2s ease;
+        }
+
+        .reset-btn:active {
+            transform: scale(0.95);
+            background: rgba(255,255,255,0.25);
+        }
+
+        .bubble-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 12px;
+            padding: 24px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 24px;
+            border: 1px solid var(--glass-border);
+        }
+
+        .bubble {
+            aspect-ratio: 1;
+            border-radius: 50%;
+            cursor: pointer;
+            position: relative;
+            transition: transform 0.15s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .bubble::before {
+            content: '';
+            position: absolute;
+            top: 15%;
+            left: 20%;
+            width: 30%;
+            height: 30%;
+            background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.8), transparent);
+            border-radius: 50%;
+        }
+
+        .bubble::after {
+            content: '';
+            position: absolute;
+            bottom: 20%;
+            right: 25%;
+            width: 15%;
+            height: 15%;
+            background: rgba(255,255,255,0.4);
+            border-radius: 50%;
+        }
+
+        .bubble:active {
+            transform: scale(0.85);
+        }
+
+        .bubble.popping {
+            animation: pop 0.4s ease-out forwards;
+        }
+
+        @keyframes pop {
+            0% { transform: scale(1); opacity: 1; }
+            30% { transform: scale(1.3); }
+            100% { transform: scale(0); opacity: 0; }
+        }
+
+        .bubble:nth-child(6n+1) { background: linear-gradient(135deg, #ff9a9e, #fecfef); box-shadow: 0 6px 20px rgba(255,154,158,0.4); }
+        .bubble:nth-child(6n+2) { background: linear-gradient(135deg, #a18cd1, #fbc2eb); box-shadow: 0 6px 20px rgba(161,140,209,0.4); }
+        .bubble:nth-child(6n+3) { background: linear-gradient(135deg, #fad0c4, #ffd1ff); box-shadow: 0 6px 20px rgba(250,208,196,0.4); }
+        .bubble:nth-child(6n+4) { background: linear-gradient(135deg, #84fab0, #8fd3f4); box-shadow: 0 6px 20px rgba(132,250,176,0.4); }
+        .bubble:nth-child(6n+5) { background: linear-gradient(135deg, #cfd9df, #e2ebf0); box-shadow: 0 6px 20px rgba(207,217,223,0.4); }
+        .bubble:nth-child(6n+6) { background: linear-gradient(135deg, #fdcbf1, #e6dee9); box-shadow: 0 6px 20px rgba(253,203,241,0.4); }
+
+        .hint {
+            text-align: center;
+            color: rgba(255,255,255,0.8);
+            font-size: 0.95rem;
+            padding: 12px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: var(--glass-bg);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ffd700, #ff6b6b);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        #particle-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        .celebration {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            font-size: 2rem;
+            color: #fff;
+            text-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            font-weight: 700;
+            z-index: 1001;
+            pointer-events: none;
+            opacity: 0;
+        }
+
+        .celebration.show {
+            animation: celebrate 1.5s ease-out forwards;
+        }
+
+        @keyframes celebrate {
+            0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+            20% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+            40% { transform: translate(-50%, -50%) scale(1); }
+            100% { transform: translate(-50%, -60%) scale(1); opacity: 0; }
+        }
+
+        @media (max-width: 400px) {
+            .bubble-grid {
+                gap: 8px;
+                padding: 16px;
+            }
+            .header {
+                padding: 12px 16px;
+            }
+            .title {
+                font-size: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="particle-canvas"></canvas>
+    <div class="celebration" id="celebration">全部捏完啦！</div>
+    <div class="game-over-overlay" id="game-over-overlay">
+        <div class="game-over-text" id="game-over-text"></div>
+        <div class="game-over-sub" id="game-over-sub"></div>
+        <button class="reset-btn" id="overlay-reset-btn">再玩一次</button>
+    </div>
+
+    <div class="game-container">
+        <div class="header">
+            <div class="title">捏捏泡泡</div>
+            <div class="level-info">
+                <div class="level" id="level">第 1 关</div>
+                <div class="timer" id="timer">30</div>
+            </div>
+            <div class="score-display">
+                <div class="combo" id="combo">连击 x<span id="combo-count">0</span></div>
+                <div class="score">分数: <span id="score">0</span></div>
+            </div>
+        </div>
+
+        <div class="bubble-grid" id="bubble-grid"></div>
+
+        <div class="hint">
+            <div id="hint-text">点击泡泡释放压力</div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <button class="reset-btn" id="reset-btn">重新开始</button>
+    </div>
+
+    <script>
+        (function(){
+            "use strict";
+
+            const TOTAL_BUBBLES = 25;
+            const LEVELS = [
+                { time: 30, name: '第 1 关' },
+                { time: 20, name: '第 2 关' },
+                { time: 10, name: '第 3 关' }
+            ];
+
+            let bubbles = [];
+            let score = 0;
+            let combo = 0;
+            let lastPopTime = 0;
+            let particles = [];
+            let audioCtx = null;
+            let currentLevel = 0;
+            let timeLeft = 0;
+            let timerInterval = null;
+            let gameActive = false;
+
+            const scoreEl = document.getElementById('score');
+            const comboEl = document.getElementById('combo');
+            const comboCountEl = document.getElementById('combo-count');
+            const progressEl = document.getElementById('progress');
+            const bubbleGrid = document.getElementById('bubble-grid');
+            const celebration = document.getElementById('celebration');
+            const resetBtn = document.getElementById('reset-btn');
+            const hintText = document.getElementById('hint-text');
+            const particleCanvas = document.getElementById('particle-canvas');
+            const ctx = particleCanvas.getContext('2d');
+            const levelEl = document.getElementById('level');
+            const timerEl = document.getElementById('timer');
+            const overlayEl = document.getElementById('game-over-overlay');
+            const overlayTextEl = document.getElementById('game-over-text');
+            const overlaySubEl = document.getElementById('game-over-sub');
+            const overlayResetBtn = document.getElementById('overlay-reset-btn');
+
+            function resizeCanvas() {
+                particleCanvas.width = window.innerWidth;
+                particleCanvas.height = window.innerHeight;
+            }
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+
+            function initAudio() {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            }
+
+            function playPopSound() {
+                if (!audioCtx) return;
+                try {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+
+                    osc.frequency.setValueAtTime(800 + Math.random() * 400, audioCtx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(200, audioCtx.currentTime + 0.1);
+
+                    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+
+                    osc.start(audioCtx.currentTime);
+                    osc.stop(audioCtx.currentTime + 0.15);
+                } catch(e) {}
+            }
+
+            function createParticles(x, y, color) {
+                for (let i = 0; i < 12; i++) {
+                    const angle = (Math.PI * 2 * i) / 12 + Math.random() * 0.5;
+                    const speed = 3 + Math.random() * 4;
+                    particles.push({
+                        x, y,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed,
+                        radius: 4 + Math.random() * 6,
+                        color,
+                        alpha: 1,
+                        decay: 0.02 + Math.random() * 0.02
+                    });
+                }
+            }
+
+            function updateParticles() {
+                ctx.clearRect(0, 0, particleCanvas.width, particleCanvas.height);
+
+                particles = particles.filter(p => {
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.vy += 0.15;
+                    p.alpha -= p.decay;
+                    p.radius *= 0.97;
+
+                    if (p.alpha <= 0) return false;
+
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = p.color.replace(')', `, ${p.alpha})`).replace('rgb', 'rgba');
+                    ctx.fill();
+                    return true;
+                });
+
+                requestAnimationFrame(updateParticles);
+            }
+            updateParticles();
+
+            function createBubbles() {
+                bubbleGrid.innerHTML = '';
+                bubbles = [];
+
+                for (let i = 0; i < TOTAL_BUBBLES; i++) {
+                    const bubble = document.createElement('div');
+                    bubble.className = 'bubble';
+                    bubble.dataset.index = i;
+
+                    bubble.addEventListener('click', () => popBubble(bubble));
+                    bubble.addEventListener('touchstart', (e) => {
+                        e.preventDefault();
+                        initAudio();
+                        popBubble(bubble);
+                    }, { passive: false });
+
+                    bubbleGrid.appendChild(bubble);
+                    bubbles.push(bubble);
+                }
+            }
+
+            function startTimer() {
+                stopTimer();
+                timeLeft = LEVELS[currentLevel].time;
+                timerEl.textContent = timeLeft;
+                timerEl.classList.remove('warning');
+
+                timerInterval = setInterval(() => {
+                    timeLeft--;
+                    timerEl.textContent = timeLeft;
+
+                    if (timeLeft <= 5) {
+                        timerEl.classList.add('warning');
+                    }
+
+                    if (timeLeft <= 0) {
+                        stopTimer();
+                        gameOver(false);
+                    }
+                }, 1000);
+            }
+
+            function stopTimer() {
+                if (timerInterval) {
+                    clearInterval(timerInterval);
+                    timerInterval = null;
+                }
+            }
+
+            function popBubble(bubble) {
+                if (bubble.classList.contains('popping') || !gameActive) return;
+
+                initAudio();
+                playPopSound();
+
+                const rect = bubble.getBoundingClientRect();
+                const x = rect.left + rect.width / 2;
+                const y = rect.top + rect.height / 2;
+                const colors = ['rgb(255,154,158)', 'rgb(161,140,209)', 'rgb(250,208,196)', 'rgb(132,250,176)', 'rgb(207,217,223)', 'rgb(253,203,241)'];
+                const randomColor = colors[Math.floor(Math.random() * colors.length)];
+                createParticles(x, y, randomColor);
+
+                bubble.classList.add('popping');
+
+                const now = Date.now();
+                if (now - lastPopTime < 500) {
+                    combo++;
+                } else {
+                    combo = 1;
+                }
+                lastPopTime = now;
+
+                const points = combo > 1 ? combo * 10 : 10;
+                score += points;
+
+                scoreEl.textContent = score;
+
+                if (combo > 1) {
+                    comboCountEl.textContent = combo;
+                    comboEl.classList.add('active');
+                }
+
+                setTimeout(() => {
+                    if (comboEl.classList.contains('active')) {
+                        comboEl.classList.remove('active');
+                    }
+                }, 800);
+
+                const popped = bubbles.filter(b => b.classList.contains('popping')).length;
+                progressEl.style.width = `${(popped / TOTAL_BUBBLES) * 100}%`;
+
+                setTimeout(() => {
+                    bubble.style.visibility = 'hidden';
+
+                    if (popped === TOTAL_BUBBLES) {
+                        levelComplete();
+                    }
+                }, 400);
+            }
+
+            function levelComplete() {
+                stopTimer();
+                gameActive = false;
+
+                if (currentLevel < LEVELS.length - 1) {
+                    showCelebration('过关啦！');
+                    setTimeout(() => {
+                        currentLevel++;
+                        startLevel();
+                    }, 1500);
+                } else {
+                    showVictory();
+                }
+            }
+
+            function showCelebration(text) {
+                celebration.querySelector('div') || celebration;
+                celebration.innerHTML = text || '全部捏完啦！';
+                celebration.classList.add('show');
+
+                setTimeout(() => {
+                    celebration.classList.remove('show');
+                }, 1500);
+            }
+
+            function showVictory() {
+                overlayTextEl.innerHTML = '<span class="victory-text">恭喜通关！</span>';
+                overlaySubEl.textContent = `太厉害了！三关全部通过！总分：${score}`;
+                overlayEl.classList.add('show');
+            }
+
+            function gameOver(won) {
+                stopTimer();
+                gameActive = false;
+
+                if (won) {
+                    showVictory();
+                } else {
+                    overlayTextEl.innerHTML = '<span class="fail-text">时间到！</span>';
+                    overlaySubEl.textContent = `第 ${currentLevel + 1} 关时间耗尽，得分：${score}`;
+                    overlayEl.classList.add('show');
+                }
+            }
+
+            function startLevel() {
+                gameActive = false;
+                createBubbles();
+                progressEl.style.width = '0%';
+                levelEl.textContent = LEVELS[currentLevel].name;
+                hintText.textContent = `在 ${LEVELS[currentLevel].time} 秒内捏完所有泡泡！`;
+                overlayEl.classList.remove('show');
+
+                setTimeout(() => {
+                    gameActive = true;
+                    startTimer();
+                }, 300);
+            }
+
+            function resetGame() {
+                stopTimer();
+                score = 0;
+                combo = 0;
+                currentLevel = 0;
+                scoreEl.textContent = '0';
+                overlayEl.classList.remove('show');
+                celebration.classList.remove('show');
+                startLevel();
+            }
+
+            resetBtn.addEventListener('click', resetGame);
+            overlayResetBtn.addEventListener('click', resetGame);
+
+            startLevel();
+        })();
+    </script>
+</body>
+</html>
